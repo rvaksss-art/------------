@@ -1,0 +1,343 @@
+openapi: 3.1.0
+info:
+  title: Wallet Currency Exchange API
+  version: 1.0.0-draft
+  description: |
+    Контракт будущего API обмена валют внутри кошелька.
+    HTML-прототип не подключён к этому API и использует mock-данные.
+servers:
+  - url: https://api.example.internal
+    description: Пример будущего окружения
+tags:
+  - name: Exchange Quotes
+  - name: Exchange Orders
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/exchange-quotes:
+    post:
+      tags: [Exchange Quotes]
+      summary: Создать котировку обмена
+      operationId: createExchangeQuote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+            examples:
+              rubToUsdt:
+                value:
+                  sourceCurrency: RUB
+                  targetCurrency: USDT
+                  sourceAmount: '10000.00'
+      responses:
+        '201':
+          description: Котировка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+              examples:
+                rubToUsdt:
+                  value:
+                    quoteId: QT-2026-000001
+                    sourceAmount: { amount: '10000.00', currency: RUB }
+                    targetAmount: { amount: '107.68', currency: USDT }
+                    commission: { amount: '50.00', currency: RUB }
+                    rate:
+                      baseCurrency: USDT
+                      quoteCurrency: RUB
+                      value: '92.40'
+                    createdAt: '2026-09-17T13:00:00Z'
+                    expiresAt: '2026-09-17T13:00:30Z'
+                    status: ACTIVE
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/BusinessValidationError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/exchange-orders:
+    post:
+      tags: [Exchange Orders]
+      summary: Создать заявку по активной котировке
+      operationId: createExchangeOrder
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Уникальный ключ одной логической попытки подтверждения
+          schema:
+            type: string
+            format: uuid
+          example: 7ee650b1-2c0c-4a40-9fb5-cfb95ce6178f
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangeOrderRequest'
+            example:
+              quoteId: QT-2026-000001
+      responses:
+        '201':
+          description: Заявка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeOrder'
+        '200':
+          description: Возвращён результат ранее обработанного идемпотентного запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeOrder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Котировка истекла или изменилась, либо ключ идемпотентности конфликтует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeError'
+              examples:
+                quoteExpired:
+                  value:
+                    code: QUOTE_EXPIRED
+                    message: Курс истёк. Получите новую котировку.
+                    traceId: 98ccca0f4d97474aaefb46025dbf78ca
+                quoteChanged:
+                  value:
+                    code: QUOTE_CHANGED
+                    message: Курс изменился. Проверьте новые условия обмена.
+                    traceId: b380683851b441c4a641272847b245e4
+                idempotencyConflict:
+                  value:
+                    code: IDEMPOTENCY_CONFLICT
+                    message: Ключ идемпотентности уже использован для другого запроса.
+                    traceId: a4fb6cb00a374d63887e7dc16ca37470
+        '422':
+          $ref: '#/components/responses/BusinessValidationError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/exchange-orders/{orderId}:
+    get:
+      tags: [Exchange Orders]
+      summary: Получить заявку по идентификатору
+      operationId: getExchangeOrder
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^EX-[0-9]{4}-[0-9]{6}$'
+          example: EX-2026-001245
+      responses:
+        '200':
+          description: Текущее состояние заявки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeOrder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Заявка не найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Currency:
+      type: string
+      enum: [RUB, USDT]
+    DecimalAmount:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)(\.[0-9]{1,8})?$'
+      description: Десятичное значение в строке без потери точности
+      example: '10000.00'
+    Money:
+      type: object
+      additionalProperties: false
+      required: [amount, currency]
+      properties:
+        amount:
+          $ref: '#/components/schemas/DecimalAmount'
+        currency:
+          $ref: '#/components/schemas/Currency'
+    QuoteRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceCurrency, targetCurrency, sourceAmount]
+      properties:
+        sourceCurrency:
+          $ref: '#/components/schemas/Currency'
+        targetCurrency:
+          $ref: '#/components/schemas/Currency'
+        sourceAmount:
+          $ref: '#/components/schemas/DecimalAmount'
+    ExchangeRate:
+      type: object
+      additionalProperties: false
+      required: [baseCurrency, quoteCurrency, value]
+      properties:
+        baseCurrency:
+          $ref: '#/components/schemas/Currency'
+        quoteCurrency:
+          $ref: '#/components/schemas/Currency'
+        value:
+          $ref: '#/components/schemas/DecimalAmount'
+    Quote:
+      type: object
+      additionalProperties: false
+      required: [quoteId, sourceAmount, targetAmount, commission, rate, createdAt, expiresAt, status]
+      properties:
+        quoteId:
+          type: string
+          pattern: '^QT-[0-9]{4}-[0-9]{6}$'
+        sourceAmount:
+          $ref: '#/components/schemas/Money'
+        targetAmount:
+          $ref: '#/components/schemas/Money'
+        commission:
+          $ref: '#/components/schemas/Money'
+        rate:
+          $ref: '#/components/schemas/ExchangeRate'
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED]
+    ExchangeOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [quoteId]
+      properties:
+        quoteId:
+          type: string
+          pattern: '^QT-[0-9]{4}-[0-9]{6}$'
+    OrderStatus:
+      type: string
+      enum: [CREATED, PROCESSING, COMPLETED, REJECTED, FAILED]
+    ExchangeOrder:
+      type: object
+      additionalProperties: false
+      required:
+        - orderId
+        - quoteId
+        - sourceAmount
+        - targetAmount
+        - commission
+        - rate
+        - status
+        - createdAt
+      properties:
+        orderId:
+          type: string
+          pattern: '^EX-[0-9]{4}-[0-9]{6}$'
+        quoteId:
+          type: string
+        sourceAmount:
+          $ref: '#/components/schemas/Money'
+        targetAmount:
+          $ref: '#/components/schemas/Money'
+        commission:
+          $ref: '#/components/schemas/Money'
+        rate:
+          $ref: '#/components/schemas/ExchangeRate'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        rejectionReason:
+          oneOf:
+            - type: string
+            - type: 'null'
+    ExchangeError:
+      type: object
+      additionalProperties: false
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - UNSUPPORTED_PAIR
+            - INVALID_AMOUNT
+            - LIMIT_EXCEEDED
+            - INSUFFICIENT_FUNDS
+            - QUOTE_EXPIRED
+            - QUOTE_CHANGED
+            - IDEMPOTENCY_CONFLICT
+            - ORDER_NOT_FOUND
+            - SERVICE_UNAVAILABLE
+        message:
+          type: string
+        field:
+          oneOf:
+            - type: string
+            - type: 'null'
+        traceId:
+          type: string
+  responses:
+    BadRequest:
+      description: Некорректный формат запроса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExchangeError'
+          example:
+            code: INVALID_REQUEST
+            message: Проверьте параметры запроса.
+            field: sourceAmount
+            traceId: 0cd5d173dd924c69af48ff56960b71ae
+    BusinessValidationError:
+      description: Нарушено бизнес-правило
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExchangeError'
+          examples:
+            insufficientFunds:
+              value:
+                code: INSUFFICIENT_FUNDS
+                message: Недостаточно средств.
+                field: sourceAmount
+                traceId: f81c1bbb6fb44611a31c54ae56f146cb
+            invalidAmount:
+              value:
+                code: INVALID_AMOUNT
+                message: Сумма должна быть больше нуля и соответствовать лимитам пары.
+                field: sourceAmount
+                traceId: 9a4eac9b07bd4f4fb4af903d65e1ab4a
+    ServiceUnavailable:
+      description: Временная техническая ошибка
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExchangeError'
+          example:
+            code: SERVICE_UNAVAILABLE
+            message: Операция временно недоступна. Повторите попытку позднее.
+            traceId: 82b2485470504b75b98a85f2a0b4b5d1
+

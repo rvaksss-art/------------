@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f6f6">
+  <title>Обмен валют — Кошелёк пользователя</title>
+  <style>
+/* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio.
+   Put this @layer first; product CSS outside the layer always wins. */
+@layer od-layout {
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+  .od-stack { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill { flex: 1 1 0; min-width: 0; }
+  .od-fixed { flex: none; }
+  .od-grid { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap { white-space: nowrap; }
+  .od-keep { word-break: keep-all; overflow-wrap: anywhere; }
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch { min-width: 44px; min-height: 44px; }
+}
+/* /OD-LAYOUT-PRIMITIVES v1 */
+:root {
+  color-scheme: light;
+  --bg:#f3f6f6; --surface:#fff; --ink:#172828; --muted:#526262; --accent:#2f4f4f; --hover:#223c3c;
+  --violet:#3f2f4f; --error:#4f2f2f; --success:#3f4f2f; --border:#d8e1e1; --soft:#edf2f2;
+  --error-bg:#f8eeee; --success-bg:#edf2e8; --notice-bg:#f1eef5; --disabled-bg:#e4ebeb;
+  --s1:4px; --s2:8px; --s3:16px; --s4:24px; --s5:32px; --s6:48px; --s7:64px;
+  --font-body:"Segoe UI",system-ui,sans-serif; --font-display:Bahnschrift,"Trebuchet MS",sans-serif;
+  --text:16px; --medium:18px; --subhead:24px; --heading:40px;
+  --radius:16px; --control-radius:8px; --shadow:0 8px 32px rgba(23,40,40,.06);
+  --feedback:180ms; --enter:240ms; --exit:150ms; --form-width:608px; --page-width:1120px;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg); color:var(--ink); font:var(--text)/1.5 var(--font-body); -webkit-font-smoothing:antialiased; }
+button,input,select { font:inherit; }
+button,select { cursor:pointer; }
+button { color:inherit; }
+button:disabled { cursor:default; }
+button,input,select { -webkit-tap-highlight-color:transparent; }
+:focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
+h1,h2,h3,p { margin:0; }
+h1,h2,h3 { text-wrap:balance; }
+svg.icon { display:block; width:24px; height:24px; flex:none; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }
+.svg-library { position:absolute; width:0; height:0; overflow:hidden; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.topbar { background:var(--surface); border-bottom:1px solid var(--border); }
+.topbar-inner { max-width:var(--page-width); min-height:80px; margin-inline:auto; padding:var(--s3) var(--s4); justify-content:space-between; gap:var(--s4); }
+.brand { gap:var(--s3); }
+.brand-mark { display:grid; place-items:center; width:40px; height:40px; background:var(--accent); color:white; border-radius:var(--control-radius); }
+.brand-name { font-family:var(--font-display); font-size:var(--medium); font-weight:600; letter-spacing:-.3px; }
+.context { color:var(--muted); gap:var(--s2); }
+.context svg.icon { width:20px; height:20px; }
+main { max-width:var(--page-width); margin:auto; padding:var(--s6) var(--s4) var(--s7); }
+.intro { text-align:center; margin-bottom:var(--s5); }
+.eyebrow { display:block; color:var(--accent); letter-spacing:.12em; font-weight:600; margin-bottom:var(--s2); }
+h1 { font-family:var(--font-display); font-size:clamp(32px,4vw,var(--heading)); font-weight:600; line-height:1.2; letter-spacing:-1.2px; }
+.subtitle { margin-top:var(--s2); color:var(--muted); }
+.workspace { max-width:var(--form-width); margin-inline:auto; }
+.balance-grid { --od-cols:2; --od-gap:var(--s3); margin-bottom:var(--s4); }
+.balance { background:var(--surface); border:1px solid var(--border); border-radius:var(--control-radius); padding:var(--s3); gap:var(--s3); }
+.currency-mark { display:grid; place-items:center; width:40px; height:40px; border:1px solid var(--border); border-radius:50%; font-size:var(--subhead); font-family:var(--font-display); color:var(--accent); background:var(--soft); }
+.currency-mark.usdt { color:var(--violet); background:var(--notice-bg); }
+.balance-label { color:var(--muted); }
+.balance-number { font-weight:600; font-size:var(--medium); font-variant-numeric:tabular-nums; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--s5); }
+.card-heading { justify-content:space-between; margin-bottom:var(--s4); gap:var(--s3); }
+.card-heading h2 { font-family:var(--font-display); font-size:var(--medium); font-weight:600; }
+.pair { color:var(--muted); gap:var(--s2); }
+.pair svg.icon { width:16px; height:16px; }
+.amount-box { border:1px solid var(--border); border-radius:var(--control-radius); padding:var(--s3); background:var(--surface); }
+.amount-box:focus-within { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.amount-box.is-error { border-color:var(--error); box-shadow:0 0 0 1px var(--error); background:var(--error-bg); }
+.amount-label { display:block; font-weight:600; margin-bottom:var(--s2); }
+.amount-row { gap:var(--s3); }
+.amount-input { display:block; width:100%; min-width:0; border:0; outline:none; color:var(--ink); background:transparent; padding:0; font-family:var(--font-display); font-size:clamp(24px,4vw,40px); line-height:1.2; font-weight:500; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
+.amount-input::placeholder { color:var(--muted); opacity:1; }
+.amount-input:focus-visible { outline:2px solid var(--accent); outline-offset:4px; border-radius:var(--s1); }
+.amount-input:disabled { color:var(--ink); -webkit-text-fill-color:var(--ink); opacity:1; }
+.currency-select { display:flex; position:relative; align-items:center; flex:none; }
+.currency-select select { display:block; min-height:44px; width:104px; appearance:none; -webkit-appearance:none; padding:var(--s2) var(--s5) var(--s2) var(--s3); border:1px solid var(--border); border-radius:var(--control-radius); background:var(--surface); color:var(--ink); font-weight:600; }
+.currency-select .icon { position:absolute; right:var(--s2); top:12px; width:20px; height:20px; pointer-events:none; color:var(--muted); }
+.currency-select select:disabled { opacity:1; color:var(--muted); cursor:default; }
+.amount-bottom { justify-content:space-between; flex-wrap:wrap; margin-top:var(--s2); min-height:44px; color:var(--muted); }
+.text-button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; border:0; padding:var(--s2); background:transparent; font-weight:600; color:var(--accent); border-radius:var(--control-radius); }
+.text-button:disabled { color:var(--muted); }
+.receive-box { background:var(--soft); }
+.receive-box .amount-input { color:var(--accent); }
+.receive-helper { min-height:24px; }
+.swap-row { display:flex; justify-content:center; padding:var(--s2) 0; }
+.swap-button { display:flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--accent); transition:background var(--feedback); }
+.swap-button:disabled { color:var(--muted); }
+.error-message { display:flex; align-items:flex-start; gap:var(--s2); margin-top:var(--s3); color:var(--error); }
+.error-message svg.icon { width:20px; height:20px; margin-top:var(--s1); }
+.conditions { margin-top:var(--s4); }
+dl { margin:0; }
+.detail-row { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; column-gap:var(--s3); row-gap:var(--s1); padding-block:var(--s1); }
+dt { color:var(--muted); }
+dd { margin:0; font-variant-numeric:tabular-nums; font-weight:500; }
+.detail-row.total { border-top:1px solid var(--border); margin-top:var(--s2); padding-top:var(--s3); }
+.total dt,.total dd { color:var(--ink); font-weight:600; }
+.commission-note { color:var(--muted); margin-top:var(--s2); }
+.timer-row { color:var(--muted); justify-content:space-between; flex-wrap:wrap; min-height:44px; margin-top:var(--s2); gap:var(--s2); }
+.timer-label { gap:var(--s2); flex-wrap:wrap; }
+.timer-label .icon { width:20px; height:20px; }
+.timer-value { color:var(--accent); font-variant-numeric:tabular-nums; font-weight:600; }
+.timer-value.expired { font-weight:500; }
+.timer-copy { display:block; }
+.primary,.secondary { display:flex; align-items:center; justify-content:center; gap:var(--s2); width:100%; min-height:56px; padding:var(--s3); border-radius:var(--control-radius); border:1px solid transparent; font-weight:600; white-space:nowrap; transition:background var(--feedback),color var(--feedback); }
+.primary { background:var(--accent); color:white; }
+.primary:disabled { background:var(--disabled-bg); color:var(--muted); }
+.primary[aria-busy="true"] { background:var(--accent); color:white; }
+.primary .icon { width:20px; height:20px; }
+.actions { margin-top:var(--s3); gap:var(--s2); }
+.secondary { color:var(--accent); background:var(--surface); border-color:var(--border); }
+.rate-notice { margin-top:var(--s4); padding:var(--s3); background:var(--notice-bg); color:var(--violet); border:1px solid #dad2e1; border-radius:var(--control-radius); }
+.notice-heading { align-items:flex-start; gap:var(--s2); }
+.notice-heading h3 { font-size:var(--text); line-height:1.5; font-weight:600; }
+.rate-notice p { margin-top:var(--s2); }
+.rate-notice dl { margin-top:var(--s3); }
+.rate-notice dt { color:var(--violet); }
+.rate-notice dd { font-weight:600; }
+.old-rate { text-decoration:line-through; text-decoration-thickness:1px; }
+.notice-footnote { color:var(--muted); }
+.feedback { margin-top:var(--s3); color:var(--accent); }
+.workspace-footer { justify-content:center; color:var(--muted); margin-top:var(--s4); text-align:center; }
+.workspace-footer .icon { width:20px; height:20px; }
+.result-card { text-align:center; animation:arrive var(--enter) ease-out; }
+.success-mark { display:grid; place-items:center; width:64px; height:64px; margin:0 auto var(--s4); border-radius:50%; background:var(--success-bg); color:var(--success); }
+.success-mark .icon { width:32px; height:32px; }
+.result-card h2 { font:600 var(--subhead)/1.3 var(--font-display); }
+.result-lead { color:var(--muted); margin-top:var(--s2); }
+.result-amount { display:block; font:500 clamp(24px,4vw,40px)/1.2 var(--font-display); color:var(--accent); margin-top:var(--s3); font-variant-numeric:tabular-nums; }
+.receipt { text-align:left; border-top:1px solid var(--border); margin-top:var(--s5); padding-top:var(--s4); }
+.receipt .detail-row { padding-block:var(--s2); }
+.receipt .request-number { font-size:var(--text); }
+.result-card .primary { margin-top:var(--s4); }
+.loading-icon { animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes arrive { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media (hover:hover) {
+  .primary:not(:disabled):hover { background:var(--hover); }
+  .secondary:not(:disabled):hover,.swap-button:not(:disabled):hover,.text-button:not(:disabled):hover { background:var(--soft); color:var(--hover); }
+  .currency-select select:not(:disabled):hover { border-color:var(--accent); }
+}
+@media (min-width:1440px) { main { padding-top:var(--s6); } }
+@media (max-width:1023px) { .topbar-inner { padding-inline:var(--s5); } main { padding-top:var(--s5); } }
+@media (max-width:767px) {
+  .topbar-inner { min-height:72px; padding-inline:var(--s4); }
+  .context { display:none; }
+  main { padding:var(--s5) var(--s3) var(--s6); }
+  .intro { margin-bottom:var(--s4); }
+  .card { padding:var(--s4); }
+  .balance { gap:var(--s2); }
+  .balance .currency-mark { display:none; }
+  .balance-grid { gap:var(--s2); margin-bottom:var(--s3); }
+  .brand-name { font-size:var(--text); }
+}
+@media (max-width:479px) {
+  .card { padding:var(--s3); }
+  .balance { padding:var(--s3); }
+  .balance-number { font-size:var(--text); }
+  .amount-box { padding:var(--s3); }
+  .amount-row { gap:var(--s2); }
+  .currency-select select { width:96px; }
+  .amount-bottom { gap:var(--s1); }
+  .amount-input { letter-spacing:-.5px; }
+  .timer-row { align-items:flex-start; }
+  .detail-row { font-size:var(--text); }
+  .result-card { padding-block:var(--s5); }
+  .eyebrow { letter-spacing:.08em; }
+}
+@media (max-width:374px) {
+  .balance-grid { --od-cols:1; }
+  .amount-row { flex-wrap:wrap; }
+  .amount-row .od-fill { flex-basis:100%; }
+  .primary { padding-inline:var(--s2); }
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+  </style>
+</head>
+<body>
+<svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V5a2 2 0 0 0-2-2H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h13a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H6a1 1 0 0 1 0-2"/><path d="M21 12h-5a2 2 0 0 0 0 4h5M17 14h.01"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M8 4v16m-4-4 4 4 4-4M16 20V4m-4 4 4-4 4 4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.01"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m10.3 4-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5m0 3v.01"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 7a8 8 0 0 1 13-1L20 8M4 16l1.5 2a8 8 0 0 0 13-1"/></symbol>
+  </defs>
+</svg>
+<header class="topbar">
+  <div class="topbar-inner od-row">
+    <div class="brand od-row"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg></span><span class="brand-name">Кошелёк пользователя</span></div>
+    <div class="context od-row"><span>Личные финансы</span></div>
+  </div>
+</header>
+<main>
+  <div class="intro">
+    <span class="eyebrow">ВАШИ СРЕДСТВА · ВАШИ ВОЗМОЖНОСТИ</span>
+    <h1>Обмен валют</h1>
+    <p class="subtitle">Обменивайте валюту внутри кошелька</p>
+  </div>
+  <div class="workspace">
+    <section class="balance-grid od-grid" aria-label="Доступные балансы">
+      <div class="balance od-row"><span class="currency-mark od-fixed" aria-hidden="true">₽</span><div class="od-field od-fill"><span class="balance-label">Рубли · RUB</span><span id="balance-rub" class="balance-number od-nowrap">50 000,00 ₽</span></div></div>
+      <div class="balance od-row"><span class="currency-mark usdt od-fixed" aria-hidden="true">₮</span><div class="od-field od-fill"><span class="balance-label">Tether · USDT</span><span id="balance-usdt" class="balance-number od-nowrap">250,40 USDT</span></div></div>
+    </section>
+
+    <section id="exchange-card" class="card" aria-labelledby="form-title">
+      <div class="card-heading od-row"><h2 id="form-title">Сумма обмена</h2><span class="pair od-row" aria-label="Направление обмена"><span id="pair-from">RUB</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg><span id="pair-to">USDT</span></span></div>
+      <form id="exchange-form" novalidate>
+        <div id="send-box" class="amount-box">
+          <label class="amount-label" for="amount">Отдаёте</label>
+          <div class="amount-row od-row">
+            <div class="od-fill"><input id="amount" class="amount-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="0,00" maxlength="24" aria-describedby="available amount-error" aria-invalid="false"></div>
+            <div class="currency-select"><label for="from-currency" class="sr-only">Валюта списания</label><select id="from-currency"><option value="RUB">RUB</option><option value="USDT">USDT</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></div>
+          </div>
+          <div class="amount-bottom od-row"><span id="available">Доступно: <span class="od-nowrap">50 000,00 ₽</span></span><button id="maximum" class="text-button" type="button">Максимум</button></div>
+        </div>
+        <p id="amount-error" class="error-message" role="alert" hidden><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span id="error-text"></span></p>
+        <div class="swap-row"><button id="swap" class="swap-button" type="button" aria-label="Поменять валюты местами"><svg class="icon" aria-hidden="true"><use href="#i-swap"/></svg></button></div>
+        <div class="amount-box receive-box">
+          <label for="receive" class="amount-label">Получаете</label>
+          <div class="amount-row od-row">
+            <div class="od-fill"><input id="receive" class="amount-input" type="text" value="—" readonly aria-readonly="true" aria-describedby="receive-balance" tabindex="0"></div>
+            <div class="currency-select"><label for="to-currency" class="sr-only">Валюта получения</label><select id="to-currency"><option value="USDT">USDT</option><option value="RUB">RUB</option></select><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></div>
+          </div>
+          <div class="amount-bottom receive-helper od-row"><span id="receive-balance">Баланс: <span class="od-nowrap">250,40 USDT</span></span></div>
+        </div>
+        <div class="conditions" aria-label="Условия обмена">
+          <dl>
+            <div class="detail-row"><dt>Курс</dt><dd id="rate" class="od-nowrap">1 USDT = 92,40 RUB</dd></div>
+            <div class="detail-row"><dt>Комиссия</dt><dd id="fee" class="od-nowrap">50,00 RUB</dd></div>
+            <div class="detail-row total"><dt>К получению</dt><dd id="total" class="od-nowrap">— USDT</dd></div>
+          </dl>
+          <p class="commission-note">Комиссия включена в сумму списания</p>
+          <div class="timer-row od-row">
+            <div class="timer-label od-row"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span id="timer-copy" class="timer-copy">Курс обновлён</span><span id="timer" class="timer-value od-nowrap" hidden>00:30</span></div>
+            <button id="refresh" class="text-button" type="button" hidden>Обновить курс</button>
+          </div>
+        </div>
+        <section id="rate-notice" class="rate-notice" aria-labelledby="rate-notice-title" hidden>
+          <div class="notice-heading od-row"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><h3 id="rate-notice-title" tabindex="-1">Курс изменился. Проверьте новые условия обмена</h3></div>
+          <dl>
+            <div class="detail-row"><dt>Предыдущий курс</dt><dd id="old-rate" class="old-rate od-nowrap">1 USDT = 92,40 RUB</dd></div>
+            <div class="detail-row"><dt>Новый курс</dt><dd id="new-rate" class="od-nowrap">1 USDT = 92,65 RUB</dd></div>
+            <div class="detail-row"><dt>К получению</dt><dd id="new-total" class="od-nowrap">107,39 USDT</dd></div>
+          </dl>
+          <p class="notice-footnote">Средства ещё не списаны. Обмен произойдёт только после подтверждения.</p>
+        </section>
+        <p id="feedback" class="feedback" role="status" hidden></p>
+        <div class="actions od-stack">
+          <button id="exchange" class="primary" type="submit" disabled aria-busy="false"><svg id="loading-icon" class="icon loading-icon" aria-hidden="true" hidden><use href="#i-loader"/></svg><span id="exchange-label">Обменять</span><svg id="action-arrow" class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+          <button id="cancel" class="secondary" type="button" hidden>Отменить</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="result-card" class="card result-card" aria-labelledby="result-title" hidden>
+      <div class="success-mark"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></div>
+      <h2 id="result-title" tabindex="-1">Обмен выполнен</h2>
+      <p class="result-lead">Средства зачислены в ваш кошелёк</p>
+      <span id="result-amount" class="result-amount od-nowrap">107,68 USDT</span>
+      <dl class="receipt">
+        <div class="detail-row"><dt>Списано</dt><dd id="result-debit" class="od-nowrap">10 000,00 RUB</dd></div>
+        <div class="detail-row"><dt>Получено</dt><dd id="result-credit" class="od-nowrap">107,68 USDT</dd></div>
+        <div class="detail-row"><dt>Курс</dt><dd id="result-rate" class="od-nowrap">1 USDT = 92,40 RUB</dd></div>
+        <div class="detail-row"><dt>Комиссия</dt><dd id="result-fee" class="od-nowrap">50,00 RUB</dd></div>
+        <div class="detail-row"><dt>Номер заявки</dt><dd id="result-number" class="request-number od-nowrap">EX-2026-001245</dd></div>
+      </dl>
+      <button id="done" class="primary" type="button">Готово</button>
+    </section>
+    <p class="workspace-footer od-row"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg><span>Обмен между вашими балансами</span></p>
+  </div>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const el = Object.fromEntries(['amount','receive','from-currency','to-currency','maximum','swap','exchange','exchange-label','action-arrow','loading-icon','cancel','refresh','timer','timer-copy','rate-notice','feedback'].map(id => [id,$(id)]));
+  const scenario = new URLSearchParams(location.search).get('scenario') || 'initial';
+  const state = { balances:{RUB:5000000,USDT:25040}, from:'RUB', to:'USDT', rate:9240, oldRate:9240, expiresAt:0, touched:false, busy:false, pendingRate:false, changed:false, success:false, expiredAnnounced:false, sequence:1245 };
+  const numberFormat = new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const format = cents => numberFormat.format(cents / 100);
+  const money = (cents,currency,symbol=false) => format(cents) + '\u00a0' + (symbol && currency === 'RUB' ? '₽' : currency);
+  const rateText = rate => '1 USDT = ' + format(rate) + '\u00a0RUB';
+  const fee = () => state.from === 'RUB' ? 5000 : 54;
+  const announce = text => { $('announcer').textContent = text; };
+  // Monetary values are integer minor units. Rounding is performed once, at the final credit.
+  const divideRounded = (n,d) => Number((BigInt(n) * 2n + BigInt(d)) / (BigInt(d) * 2n));
+  function parseAmount() {
+    const raw = el.amount.value.replace(/[\s\u00a0\u202f]/g,'');
+    if (!raw) return {value:0,empty:true,error:''};
+    if (!/^\d+(?:[.,]\d{0,2})?$/.test(raw)) return {value:0,error:'Введите сумму числом, не более двух знаков после запятой.'};
+    const [whole,fraction=''] = raw.replace(',','.').split('.');
+    const value = Number(whole) * 100 + Number(fraction.padEnd(2,'0'));
+    if (!Number.isSafeInteger(value)) return {value:0,error:'Сумма слишком большая. Введите сумму в пределах доступного баланса.'};
+    if (value <= 0) return {value,error:'Введите сумму больше нуля.'};
+    if (value > state.balances[state.from]) return {value,error:'Недостаточно средств. Доступно ' + money(state.balances[state.from],state.from).replace(/\u00a0/g,' ') };
+    if (value <= fee()) return {value,error:'Сумма должна быть больше комиссии ' + money(fee(),state.from) + '.'};
+    const net = value - fee();
+    const received = state.from === 'RUB' ? divideRounded(net * 100,state.rate) : divideRounded(net * state.rate,10000);
+    if (received < 1) return {value,error:'Увеличьте сумму: к получению должно быть не менее ' + money(1,state.to) + '.'};
+    return {value,received,error:'',empty:false};
+  }
+  function renewQuote() { state.expiresAt = Date.now() + 30000; state.expiredAnnounced = false; }
+  function remaining() { return Math.max(0,Math.ceil((state.expiresAt-Date.now())/1000)); }
+  function showFeedback(text='') { el.feedback.textContent = text; el.feedback.hidden = !text; }
+  function renderBalances() {
+    $('balance-rub').textContent = money(state.balances.RUB,'RUB',true);
+    $('balance-usdt').textContent = money(state.balances.USDT,'USDT');
+    $('available').replaceChildren(document.createTextNode('Доступно: '),moneySpan(state.balances[state.from],state.from,true));
+    $('receive-balance').replaceChildren(document.createTextNode('Баланс: '),moneySpan(state.balances[state.to],state.to,true));
+  }
+  function moneySpan(value,currency,symbol) { const span = document.createElement('span'); span.className = 'od-nowrap'; span.textContent = money(value,currency,symbol); return span; }
+  function renderTimer(model=parseAmount()) {
+    const valid = !model.error && !model.empty;
+    const time = remaining();
+    el.timer.hidden = !valid || !time;
+    el.timer.textContent = '00:' + String(time).padStart(2,'0');
+    el['timer-copy'].textContent = !valid ? 'Курс обновлён' : time ? 'Курс действует ещё' : 'Срок курса истёк';
+    el.refresh.hidden = !valid || time > 0 || state.busy;
+    el.exchange.disabled = !valid || time === 0 || state.busy;
+    if (valid && !time && !state.busy && !state.success && !state.expiredAnnounced) {
+      state.expiredAnnounced = true;
+      announce('Срок курса истёк. Обновите курс, чтобы продолжить обмен.');
+    }
+  }
+  function render() {
+    const model = parseAmount();
+    const valid = !model.error && !model.empty;
+    const locked = state.busy || state.pendingRate;
+    const error = state.touched ? model.error : '';
+    el['from-currency'].value = state.from; el['to-currency'].value = state.to;
+    $('pair-from').textContent = state.from; $('pair-to').textContent = state.to;
+    [el.amount,el['from-currency'],el['to-currency'],el.maximum,el.swap].forEach(control => control.disabled = locked);
+    el.amount.setAttribute('aria-invalid',String(!!error));
+    $('send-box').classList.toggle('is-error',!!error);
+    $('error-text').textContent = error; $('amount-error').hidden = !error;
+    el.receive.value = valid ? format(model.received) : '—';
+    el.receive.setAttribute('aria-label','Получаете, ' + state.to + ', рассчитано автоматически');
+    $('rate').textContent = rateText(state.rate); $('fee').textContent = money(fee(),state.from);
+    $('total').textContent = valid ? money(model.received,state.to) : '— ' + state.to;
+    el['rate-notice'].hidden = !state.pendingRate;
+    $('old-rate').textContent = rateText(state.oldRate); $('new-rate').textContent = rateText(state.rate);
+    $('new-total').textContent = valid ? money(model.received,state.to) : '—';
+    el['exchange-label'].textContent = state.busy ? 'Выполняем обмен…' : state.pendingRate ? 'Подтвердить новый курс' : 'Обменять';
+    el['action-arrow'].hidden = state.busy || state.pendingRate;
+    el['loading-icon'].hidden = !state.busy;
+    el.exchange.setAttribute('aria-busy',String(state.busy));
+    $('exchange-form').setAttribute('aria-busy',String(state.busy));
+    el.cancel.hidden = !state.pendingRate; el.cancel.disabled = state.busy;
+    renderBalances(); renderTimer(model);
+  }
+  function recalculate() {
+    showFeedback();
+    const model = parseAmount();
+    if (!model.error && !model.empty) renewQuote(); else state.expiresAt = 0;
+    render();
+  }
+  function changeDirection(from) {
+    if (state.busy || state.pendingRate) return;
+    state.from = from; state.to = from === 'RUB' ? 'USDT' : 'RUB';
+    state.touched = false; state.expiresAt = 0; el.amount.value = '';
+    showFeedback(); render(); el.amount.focus();
+    announce('Направление обмена: ' + state.from + ' на ' + state.to + '. Введите сумму списания.');
+  }
+  el.amount.addEventListener('input',() => { state.touched=false; recalculate(); });
+  el.amount.addEventListener('blur',() => {
+    state.touched=true;
+    const model=parseAmount();
+    if (!model.empty && model.value > 0) el.amount.value=format(model.value);
+    render();
+  });
+  el.maximum.addEventListener('click',() => {
+    if (state.busy || state.pendingRate) return;
+    el.amount.value=format(state.balances[state.from]); state.touched=true; recalculate(); el.amount.focus();
+  });
+  el['from-currency'].addEventListener('change',event => changeDirection(event.target.value));
+  el['to-currency'].addEventListener('change',event => changeDirection(event.target.value === 'RUB' ? 'USDT' : 'RUB'));
+  el.swap.addEventListener('click',() => changeDirection(state.to));
+  el.refresh.addEventListener('click',() => {
+    if (state.busy) return;
+    renewQuote(); render(); announce('Условия обновлены. Курс действует 30 секунд.'); el.exchange.focus();
+  });
+  el.cancel.addEventListener('click',() => {
+    if (state.busy) return;
+    state.pendingRate=false; renewQuote(); render();
+    showFeedback('Обмен отменён. Средства остались на ваших балансах.'); el.amount.focus();
+  });
+  $('exchange-form').addEventListener('submit',async event => {
+    event.preventDefault();
+    if (state.busy || state.success) return;
+    state.touched=true;
+    const model=parseAmount();
+    if (model.empty || model.error || !remaining()) { render(); if (model.error || model.empty) el.amount.focus(); else el.refresh.focus(); return; }
+    const snapshot={from:state.from,to:state.to,amount:model.value,received:model.received,fee:fee(),rate:state.rate};
+    const changeRequired=scenario === 'rate-change' && !state.changed && !state.pendingRate;
+    state.busy=true; showFeedback(); render(); announce('Выполняем обмен.');
+    await new Promise(resolve => setTimeout(resolve,1000));
+    if (changeRequired) {
+      state.busy=false; state.changed=true; state.pendingRate=true; state.oldRate=state.rate; state.rate=9265;
+      renewQuote(); render(); $('rate-notice-title').focus();
+      announce('Курс изменился. Проверьте новые условия обмена. Без подтверждения средства не будут списаны.'); return;
+    }
+    state.balances[snapshot.from]-=snapshot.amount;
+    state.balances[snapshot.to]+=snapshot.received;
+    state.busy=false; state.pendingRate=false; state.success=true; state.expiresAt=0;
+    $('result-amount').textContent=money(snapshot.received,snapshot.to);
+    $('result-debit').textContent=money(snapshot.amount,snapshot.from);
+    $('result-credit').textContent=money(snapshot.received,snapshot.to);
+    $('result-rate').textContent=rateText(snapshot.rate);
+    $('result-fee').textContent=money(snapshot.fee,snapshot.from);
+    $('result-number').textContent='EX-2026-' + String(state.sequence++).padStart(6,'0');
+    renderBalances(); $('exchange-card').hidden=true; $('result-card').hidden=false;
+    $('result-title').focus(); announce('Обмен выполнен. Получено ' + money(snapshot.received,snapshot.to) + '. Балансы обновлены.');
+  });
+  $('done').addEventListener('click',() => {
+    state.success=false; state.touched=false; state.expiresAt=0; el.amount.value='';
+    $('result-card').hidden=true; $('exchange-card').hidden=false; showFeedback(); render(); el.amount.focus();
+  });
+  if (scenario === 'calculated' || scenario === 'rate-change') { el.amount.value=format(1000000); renewQuote(); }
+  if (scenario === 'insufficient') { el.amount.value=format(6000000); state.touched=true; }
+  render();
+  setInterval(() => { if (!state.success && !state.busy) renderTimer(); },250);
+})();
+</script>
+</body>
+</html>
